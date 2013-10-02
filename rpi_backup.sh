@@ -21,19 +21,23 @@ SERVICES="/etc/init.d/cron \
 /etc/init.d/transmission-daemon \
 /etc/init.d/twonky \
 /etc/init.d/pptpd \
-/etc/init.d/lighttpd"
+/etc/init.d/lighttpd \
+/etc/init.d/sendmail"
 
 
 SCRIPT=`basename $0`
 DST_ROOT_PARTITION=/dev/${DST_DISK}2
 DST_BOOT_PARTITION=/dev/${DST_DISK}1
 
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+SETTINGS="$DIR/settings"
+
 
 
 # Check for root user
 if [ `id -u` != 0 ]
 then
-    echo -e "$SCRIPT needs to be run as root.\n"
+    send_mail "$SCRIPT needs to be run as root.\n"
     exit 1
 fi
 
@@ -77,6 +81,17 @@ services_action()
     done
 }
 
+send_mail()
+{
+    echo -e $1
+    if test -f $SETTINGS
+    then
+        EMAIL=`grep EMAIL $SETTINGS | cut -f 2 -d '=' `
+        echo -e "Send mail to $EMAIL"
+        echo -e $1 | mail -s "RPi backup error report" $EMAIL
+    fi
+}
+
 
 START_TIME=`date '+%H:%M:%S'`
 
@@ -95,28 +110,28 @@ START_TIME=`date '+%H:%M:%S'`
 
 if ! cat /proc/partitions | grep -q $DST_DISK
 then
-        echo "Destination disk '$DST_DISK' does not exist."
-        echo "Plug the destination SD card into a USB port."
-        echo "If it does not show up  as '$DST_DISK', then do a"
-        echo -e "'cat /proc/partitions' to see where it might be.\n"
+        send_mail "Destination disk '$DST_DISK' does not exist.\n\
+Plug the destination SD card into a USB port.\n\
+If it does not show up  as '$DST_DISK', then do a\n\
+'cat /proc/partitions' to see where it might be.\n"
         exit 1
 fi
 
 TEST_ROOT_MOUNTED=`fgrep " $BACKUP_LOCATION " /etc/mtab | cut -f 1 -d ' ' `
 if [[ "$TEST_ROOT_MOUNTED" != "" && "$TEST_ROOT_MOUNTED" != "$DST_ROOT_PARTITION" ]]
 then
-        echo "This script uses $BACKUP_LOCATION for mounting filesystems, but"
-        echo "$BACKUP_LOCATION is already mounted with $TEST_ROOT_MOUNTED."
-        echo -e "Unmount $BACKUP_LOCATION before running this script.\n"
+        send_mail "This script uses $BACKUP_LOCATION for mounting filesystems, but\n\
+$BACKUP_LOCATION is already mounted with $TEST_ROOT_MOUNTED.\n\
+Unmount $BACKUP_LOCATION before running this script.\n"
         exit 1
 fi
 
 TEST_BOOT_MOUNTED=`fgrep " $BACKUP_LOCATION/boot " /etc/mtab | cut -f 1 -d ' ' `
 if [[ "$TEST_BOOT_MOUNTED" != "" && "$TEST_BOOT_MOUNTED" != "$DST_BOOT_PARTITION" ]]
 then
-        echo "This script uses ${BACKUP_LOCATION}/boot for mounting filesystems, but"
-        echo "${BACKUP_LOCATION}/boot is already mounted with $TEST_BOOT_MOUNTED."
-        echo -e "Unmount $BACKUP_LOCATION before running this script.\n"
+        send_mail "This script uses ${BACKUP_LOCATION}/boot for mounting filesystems, but\n\
+${BACKUP_LOCATION}/boot is already mounted with $TEST_BOOT_MOUNTED.\n\
+Unmount $BACKUP_LOCATION before running this script.\n"
         exit 1
 fi
 
@@ -128,10 +143,10 @@ DST_BOOT_CURMOUNT=`fgrep "$DST_BOOT_PARTITION " /etc/mtab | cut -f 2 -d ' ' `
 if [[ "$DST_ROOT_CURMOUNT" != "" && "$DST_ROOT_CURMOUNT" != "$BACKUP_LOCATION" ]] || \
    [[ "$DST_BOOT_CURMOUNT" != "" && "$DST_BOOT_CURMOUNT" != "${BACKUP_LOCATION}/boot" ]]
 then
-        echo "A destination partition is busy (mounted).  Mount status:"
-        echo "    $DST_ROOT_PARTITION:  $DST_ROOT_CURMOUNT"
-        echo "    $DST_BOOT_PARTITION:  $DST_BOOT_CURMOUNT"
-        echo -e "Aborting!\n"
+        send_mail "A destination partition is busy (mounted).  Mount status:\n\
+    $DST_ROOT_PARTITION:  $DST_ROOT_CURMOUNT\n\
+    $DST_BOOT_PARTITION:  $DST_BOOT_CURMOUNT\n\
+Aborting!\n"
         exit 1
 fi
 
@@ -147,11 +162,11 @@ if [ "$DST_BOOT_PARTITION_TYPE" != "$SRC_BOOT_PARTITION_TYPE" ] || \
 then
         if [[ "$TEST_ROOT_MOUNTED" != "" || "$TEST_BOOT_MOUNTED" != "" ]]
         then
-            echo "A destination partition is busy (mounted). Can't write image to device."
-            echo "Mount status:"
-            echo "    $DST_ROOT_PARTITION:  $DST_ROOT_CURMOUNT"
-            echo "    $DST_BOOT_PARTITION:  $DST_BOOT_CURMOUNT"
-            echo -e "Aborting!\n"
+            send_mail "A destination partition is busy (mounted). Can't write image to device.\n\
+Mount status:\n\
+    $DST_ROOT_PARTITION:  $DST_ROOT_CURMOUNT\n\
+    $DST_BOOT_PARTITION:  $DST_BOOT_CURMOUNT\n\
+Aborting!\n"
             exit 1
         fi
   
@@ -236,7 +251,7 @@ then
     echo "=> Mounting $DST_ROOT_PARTITION ($DST_ROOT_VOL_NAME) on $BACKUP_LOCATION"
     if ! mount $DST_ROOT_PARTITION $BACKUP_LOCATION
     then
-        echo -e "Mount failure of $DST_ROOT_PARTITION, aborting!\n"
+        send_mail "Mount failure of $DST_ROOT_PARTITION, aborting!\n"
         services_action start
         exit 1
     fi
@@ -253,7 +268,7 @@ then
     if ! mount $DST_BOOT_PARTITION $BACKUP_LOCATION/boot
     then
         umount $BACKUP_LOCATION
-        echo -e "Mount failure of $DST_BOOT_PARTITION, aborting!\n"
+        send_mail "Mount failure of $DST_BOOT_PARTITION, aborting!\n"
         services_action start
         exit 1
     fi
