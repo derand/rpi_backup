@@ -1,3 +1,7 @@
 
 # e-mail to send error reports
 EMAIL=
+
+# mysql user and db
+MYSQL_USER=user
+MYSQL_DB=backup_db

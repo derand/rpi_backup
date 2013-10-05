@@ -88,8 +88,12 @@ send_mail()
     then
         EMAIL=`grep EMAIL $SETTINGS | cut -f 2 -d '=' `
         echo -e "Send mail to $EMAIL"
-        echo -e $1 | mail -s "RPi backup error report" $EMAIL
-    fi
+        if [[ $2 = "" ]]; then
+            echo -e $1 | mail -s "RPi backup error report" $EMAIL
+        else
+            echo -e $1 | mail -s "$2" $EMAIL
+        fi
+     fi
 }
 
 
@@ -366,3 +370,5 @@ echo ""
 echo "*** Done with clone to /dev/$DST_DISK ***"
 echo "    Started: $START_TIME    Finished: $STOP_TIME"
 echo ""
+
+send_mail "Started: $START_TIME    Finished: $STOP_TIME" "RPi backup complite report"
